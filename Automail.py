@@ -1,59 +1,81 @@
-import smtplib
+import os
 import base64
-from google_auth_oauthlib.flow import InstalledAppFlow
+import smtplib
+import pickle
 from email.message import EmailMessage
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 
-# Carregar credenciais
-SCOPES = ["https://mail.google.com/"] #, "https://www.googleapis.com/auth/userinfo.email"
-SERVICE_ACCOUNT_FILE = "client_secret.json"
-
-flow = InstalledAppFlow.from_client_secrets_file(SERVICE_ACCOUNT_FILE, SCOPES)
-credentials = flow.run_local_server(port=0) #, include_granted_scopes=False
-
-#print("Escopos obtidos:", credentials.scopes)
-#print("Token ID:", credentials.id_token)
+SCOPES = ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly", "https://mail.google.com/"]
+TOKEN_FILE = "token.pickle"
+CLIENT_SECRET_FILE = "client_secret.json"
 
 SERVER = "smtp.gmail.com"
 PORT = 587
 
-try:
-    smtp = smtplib.SMTP(SERVER, PORT)
-    status, response = smtp.ehlo()
-    print(f"[{status}] - {response}")
-    smtp.starttls()
-    status, response = smtp.ehlo()
-    print(f"[{status}] - {response}")
+def get_credentials():
+    credentials = None
+    
+    if os.path.exists(TOKEN_FILE):
+        with open(TOKEN_FILE, "rb") as token:
+            credentials = pickle.load(token)
 
-except Exception as e:
-    print(f"Erro ao estabelecer conexão smtp: {e}")
-    exit(1)
+    if not credentials or not credentials.valid:
+        if credentials and credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
+            credentials = flow.run_local_server(port=0)
+
+        with open(TOKEN_FILE, "wb") as token:
+            pickle.dump(credentials, token)
+
+    return credentials
+
+def setSMTP():
+    try:
+        smtp = smtplib.SMTP(SERVER, PORT)
+        smtp.starttls()
+        return smtp
+
+    except Exception as e:
+        print(f"Erro ao estabelecer conexão smtp: {e}")
+        exit(1)
+
+def main(dest):
+    smtp = setSMTP()
+    credentials = get_credentials()
+
+    service = build("gmail", "v1", credentials=credentials)
+    user = service.users().getProfile(userId="me").execute()["emailAddress"]
+    print(f"Usuário autenticado: {user}")
+
+    auth = f"user={user}\x01auth=Bearer {credentials.token}\x01\x01"
+    auth = base64.b64encode(auth.encode()).decode()
+
+    try:
+        status, response = smtp.docmd("AUTH", "XOAUTH2 " + auth)
+        if status != 235:
+            print(f"Erro de autenticação: [{status}] - {response.decode()}")
+            exit(2)
+        print("Conexão bem sucedida!")
+
+        msg = EmailMessage()
+        msg["From"] = user
+        msg["To"] = dest
+        msg["Subject"] = "Envio com OAuth2"
+        msg.set_content("Este e-mail foi enviado usando OAuth2 com Python!")
+
+        smtp.send_message(msg)
+        print("E-mail enviado com sucesso!")
+
+    except Exception as e:
+        print(f"Erro ao envar email: {e}")
+    
+    smtp.quit()
 
 
-#user = credentials.id_token["email"]
-#print(f"Email autenticado: {user}")
-user = input("Digite o endereço de email autorizado: ")
-dest = input("Entre com o email destinatário: ")
-
-auth = f"user={user}\x01auth=Bearer {credentials.token}\x01\x01"
-auth = base64.b64encode(auth.encode()).decode()
-
-try:
-    status, response = smtp.docmd("AUTH", "XOAUTH2 " + auth)
-    if status != 235:
-        print(f"Erro de autenticação: {response.decode()}")
-        exit(2)
-    print("Conexão bem sucedida!")
-
-    msg = EmailMessage()
-    msg["From"] = user
-    msg["To"] = dest
-    msg["Subject"] = "Envio com OAuth2"
-    msg.set_content("Este e-mail foi enviado usando OAuth2 com Python!")
-
-    smtp.send_message(msg)
-    print("E-mail enviado com sucesso!")
-
-except Exception as e:
-    print(f"Erro ao envar email: {e}")
-
-smtp.quit()
+if __name__ == "__main__":
+    destinatario = input("Digite o email destinatário: ")
+    main(destinatario)
