@@ -59,7 +59,18 @@ def setDest(dest):
     return addrs
 
 
-def main(dest):
+def setContent(msg):
+    with open(msg, 'r') as content:
+        lines = content.readlines()
+
+    sub = lines[0].strip()
+    body = ''.join(lines[1:]).strip()
+
+    return sub, body
+
+
+
+def main(dest, msg):
     smtp = setSMTP()
     credentials = get_credentials()
 
@@ -71,6 +82,8 @@ def main(dest):
     auth = base64.b64encode(auth.encode()).decode()
 
     addrs = setDest(dest)
+    sub, body = setContent(msg)
+    print("Dados da mensagem carregados")
 
     try:
         status, response = smtp.docmd("AUTH", "XOAUTH2 " + auth)
@@ -82,8 +95,8 @@ def main(dest):
         msg = EmailMessage()
         msg["From"] = user
         msg["To"] = ', '.join(addrs)
-        msg["Subject"] = "Envio com OAuth2"
-        msg.set_content("Este e-mail foi enviado usando OAuth2 com Python!")
+        msg["Subject"] = sub
+        msg.set_content(body)
 
         smtp.send_message(msg)
         print("E-mail enviado com sucesso!")
@@ -96,6 +109,7 @@ def main(dest):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Uso: python script.py [arquivoDestinatarios.csv] [Mensagem.txt]")
+        print(f"Uso: python {sys.argv[0]} [destinatarios.csv] [mensagem.txt]")
     else:
         main(sys.argv[1], sys.argv[2])
+
