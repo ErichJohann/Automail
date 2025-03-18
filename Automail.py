@@ -1,4 +1,5 @@
 import os
+import sys
 import base64
 import smtplib
 import pickle
@@ -6,6 +7,7 @@ from email.message import EmailMessage
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+import csv
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly", "https://mail.google.com/"]
 TOKEN_FILE = "token.pickle"
@@ -33,6 +35,7 @@ def get_credentials():
 
     return credentials
 
+
 def setSMTP():
     try:
         smtp = smtplib.SMTP(SERVER, PORT)
@@ -42,6 +45,19 @@ def setSMTP():
     except Exception as e:
         print(f"Erro ao estabelecer conexão smtp: {e}")
         exit(1)
+
+
+def setDest(dest):
+    addrs = []
+    with open(dest, newline='', encoding='utf-8') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',')
+
+        next(reader, None)
+        for line in reader:
+            addrs.append(line[0])
+
+    return addrs
+
 
 def main(dest):
     smtp = setSMTP()
@@ -54,6 +70,8 @@ def main(dest):
     auth = f"user={user}\x01auth=Bearer {credentials.token}\x01\x01"
     auth = base64.b64encode(auth.encode()).decode()
 
+    addrs = setDest(dest)
+
     try:
         status, response = smtp.docmd("AUTH", "XOAUTH2 " + auth)
         if status != 235:
@@ -63,7 +81,7 @@ def main(dest):
 
         msg = EmailMessage()
         msg["From"] = user
-        msg["To"] = dest
+        msg["To"] = ', '.join(addrs)
         msg["Subject"] = "Envio com OAuth2"
         msg.set_content("Este e-mail foi enviado usando OAuth2 com Python!")
 
@@ -77,5 +95,7 @@ def main(dest):
 
 
 if __name__ == "__main__":
-    destinatario = input("Digite o email destinatário: ")
-    main(destinatario)
+    if len(sys.argv) != 3:
+        print("Uso: python script.py [arquivoDestinatarios.csv] [Mensagem.txt]")
+    else:
+        main(sys.argv[1], sys.argv[2])
