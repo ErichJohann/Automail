@@ -9,6 +9,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import csv
 
+#google cloud console scopes and login
 SCOPES = ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly", "https://mail.google.com/"]
 TOKEN_FILE = "token.pickle"
 CLIENT_SECRET_FILE = "client_secret.json"
@@ -16,9 +17,11 @@ CLIENT_SECRET_FILE = "client_secret.json"
 SERVER = "smtp.gmail.com"
 PORT = 587
 
+#Login gmail account to smtp server
 def get_credentials():
     credentials = None
     
+    #Token login for easier authentication
     if os.path.exists(TOKEN_FILE):
         with open(TOKEN_FILE, "rb") as token:
             credentials = pickle.load(token)
@@ -30,12 +33,14 @@ def get_credentials():
             flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
             credentials = flow.run_local_server(port=0)
 
+        #saves newest token
         with open(TOKEN_FILE, "wb") as token:
             pickle.dump(credentials, token)
 
     return credentials
 
 
+#sets smtp protocol connection
 def setSMTP():
     try:
         smtp = smtplib.SMTP(SERVER, PORT)
@@ -43,10 +48,11 @@ def setSMTP():
         return smtp
 
     except Exception as e:
-        print(f"Erro ao estabelecer conexão smtp: {e}")
+        print(f"Error establishing smtp connection: {e}")
         exit(1)
 
 
+#read destination addresses from csv file
 def setDest(dest):
     addrs = []
     with open(dest, newline='', encoding='utf-8') as csvfile:
@@ -59,6 +65,7 @@ def setDest(dest):
     return addrs
 
 
+#read subject(first line) and body of email from txt file
 def setContent(msg):
     with open(msg, 'r') as content:
         lines = content.readlines()
@@ -74,24 +81,28 @@ def main(dest, msg):
     smtp = setSMTP()
     credentials = get_credentials()
 
+    #get logged user email address
     service = build("gmail", "v1", credentials=credentials)
     user = service.users().getProfile(userId="me").execute()["emailAddress"]
-    print(f"Usuário autenticado: {user}")
+    print(f"Logged as: {user}")
 
+    #set authorized user string
     auth = f"user={user}\x01auth=Bearer {credentials.token}\x01\x01"
     auth = base64.b64encode(auth.encode()).decode()
 
     addrs = setDest(dest)
     sub, body = setContent(msg)
-    print("Dados da mensagem carregados")
+    print("Email content loaded")
 
     try:
+        #Establishes connection smtp -> gmail api
         status, response = smtp.docmd("AUTH", "XOAUTH2 " + auth)
         if status != 235:
-            print(f"Erro de autenticação: [{status}] - {response.decode()}")
+            print(f"Authentication error: [{status}] - {response.decode()}")
             exit(2)
-        print("Conexão bem sucedida!")
+        print("Connection succeeded!")
 
+        #format email msg
         msg = EmailMessage()
         msg["From"] = user
         msg["To"] = ', '.join(addrs)
@@ -99,17 +110,19 @@ def main(dest, msg):
         msg.set_content(body)
 
         smtp.send_message(msg)
-        print("E-mail enviado com sucesso!")
+        print("Email successfully sent!")
 
     except Exception as e:
-        print(f"Erro ao envar email: {e}")
+        print(f"Error sending email: {e}")
     
+    #ends connection
     smtp.quit()
 
 
 if __name__ == "__main__":
+    #checks for destination and content files
     if len(sys.argv) != 3:
-        print(f"Uso: python {sys.argv[0]} [destinatarios.csv] [mensagem.txt]")
+        print(f"Usage: python {sys.argv[0]} [addresses.csv] [message.txt]")
     else:
         main(sys.argv[1], sys.argv[2])
 
