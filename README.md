@@ -1,11 +1,11 @@
 # Automail
-This script automatically sends an email to the provided addresses especified on a csv file
+This script automatically sends an email to the provided addresses specified on a csv file
 
 ### Features:
 - OAuth2 authentication with Gmail
 - Sends email via Gmail's SMTP server
 - Token storage and refresh
-- Read the multiple recipients from a CSV file
+- Reads the multiple recipients from a CSV file
 - Customizable subject and message body from a txt file
 - Usage via command line
 
@@ -13,7 +13,7 @@ This script automatically sends an email to the provided addresses especified on
 
 ### Requirements
 - Google cloud console set up
-- Install libraries
+- Install required libraries
   - google-auth
   - google-auth-oauthlib
   - google-api-python-client
@@ -27,16 +27,16 @@ This script automatically sends an email to the provided addresses especified on
      - mail.google.com
      - googleapis.com/auth/gmail.send
   - Create OAuth 2.0 Client ID credentials
-  - Download de .json and place it on project folder
-  - Account used must be added to beta testers for a not published project
+  - Download the .json and place it in the project folder
+  - Account used must be added as a beta tester for unpublished projects
 
 ### Addresses file 
-This file contains all the recipients the email will be send.
+This file contains all the recipients the email will be sent
 - First line --> header
 - The following lines each contains an email address on the first column
 
 ### Message file
-Txt file which provides the content of the email
+A txt file that provides the email content
 - First line --> Subject
 - Rest --> Body
 
@@ -51,4 +51,4 @@ Afterward, a token is saved in token.pickle for reuse.
 ---
 
 ### Notes
-The first email might be found on email's spam tab
+The first email might be found in the spam folder
